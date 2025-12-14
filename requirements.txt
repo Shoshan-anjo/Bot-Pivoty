@@ -2,3 +2,6 @@ python-dotenv
 pytz
 pywin32
 tkinterdnd2
+PyQt5
+PyQt-Fluent-Widgets
+

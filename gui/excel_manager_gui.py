@@ -1,230 +1,140 @@
-# gui/excel_manager_gui.py
-
-import os
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout,
+    QFileDialog, QMessageBox
+)
+from qfluentwidgets import (
+    TableWidget, PushButton,
+    LineEdit, InfoBar, InfoBarPosition,
+    FluentIcon, SwitchButton  # Cambiado ToggleSwitch a SwitchButton
+)
 import json
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from application.scheduler_uc import SchedulerUseCase
-from infrastructure.config_loader import ConfigLoader
-
-# Requiere instalar: pip install tkinterdnd2
-try:
-    from tkinterdnd2 import DND_FILES, TkinterDnD
-except ImportError:
-    messagebox.showerror("tkinterdnd2 no instalado", "Instala tkinterdnd2: pip install tkinterdnd2")
-    raise
+import os
 
 CONFIG_PATH = "config/excels.json"
 
-class ExcelManagerGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("BotExcel - Gestión de Excels y Horarios")
-        self.root.geometry("800x550")
 
-        self.config_loader = ConfigLoader()
-        self.scheduler_uc = SchedulerUseCase()
-        self.excels = self.load_excels()
+class ExcelManagerView(QWidget):
 
-        # Sincronizar con horarios guardados
-        self.sync_with_schedule()
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
-        # Lista de Excels
-        self.listbox = tk.Listbox(root, width=120)
-        self.listbox.pack(pady=10)
-        # Habilitar drag & drop
-        self.listbox.drop_target_register(DND_FILES)
-        self.listbox.dnd_bind('<<Drop>>', self.drop_files)
+        self.layout = QVBoxLayout(self)
 
-        # Botones de acciones
-        btn_frame = tk.Frame(root)
-        btn_frame.pack()
-        tk.Button(btn_frame, text="Agregar Excel", command=self.add_excel).grid(row=0, column=0, padx=5)
-        tk.Button(btn_frame, text="Eliminar", command=self.remove_excel).grid(row=0, column=1, padx=5)
-        tk.Button(btn_frame, text="Asignar Backup", command=self.assign_backup).grid(row=0, column=2, padx=5)
-        tk.Button(btn_frame, text="Guardar Config", command=self.save_excels).grid(row=0, column=3, padx=5)
-        tk.Button(btn_frame, text="Activar/Desactivar Horario", command=self.toggle_horario).grid(row=0, column=4, padx=5)
+        # Tabla
+        self.table = TableWidget(self)
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels([
+            "Excel",
+            "Backup",
+            "Horario",
+            "Activo"
+        ])
 
-        # Entrada de horario
-        horario_frame = tk.Frame(root)
-        horario_frame.pack(pady=10)
-        tk.Label(horario_frame, text="Horario (HH:MM)").grid(row=0, column=0)
-        self.horario_entry = tk.Entry(horario_frame, width=10)
-        self.horario_entry.grid(row=0, column=1, padx=5)
-        tk.Button(horario_frame, text="Asignar Horario", command=self.set_horario).grid(row=0, column=2, padx=5)
+        self.layout.addWidget(self.table)
 
-        self.refresh_list()
+        # Botones
+        btn_layout = QHBoxLayout()
 
-    # --------------------------
-    # Manejar archivos arrastrados
-    # --------------------------
-    def drop_files(self, event):
-        files = self.root.tk.splitlist(event.data)
-        added = 0
-        for f in files:
-            if f.lower().endswith((".xlsx", ".xlsm")) and not any(e['path'] == f for e in self.excels):
-                self.excels.append({"path": f, "backup": "", "horario": "", "activo": True})
-                added += 1
-        if added > 0:
-            self.refresh_list()
-            messagebox.showinfo("Archivos agregados", f"{added} archivos Excel agregados mediante drag & drop.")
+        self.btn_add = PushButton("Agregar Excel", self, FluentIcon.ADD)
+        self.btn_backup = PushButton("Asignar Backup", self, FluentIcon.FOLDER)
+        self.btn_save = PushButton("Guardar", self, FluentIcon.SAVE)
 
-    # --------------------------
-    # Cargar Excels desde JSON
-    # --------------------------
-    def load_excels(self):
+        self.btn_add.clicked.connect(self.add_excel)
+        self.btn_backup.clicked.connect(self.assign_backup)
+        self.btn_save.clicked.connect(self.save)
+
+        btn_layout.addWidget(self.btn_add)
+        btn_layout.addWidget(self.btn_backup)
+        btn_layout.addWidget(self.btn_save)
+
+        self.layout.addLayout(btn_layout)
+
+        self.load_data()
+
+    # ------------------------
+    # Datos
+    # ------------------------
+    def load_data(self):
+        self.table.setRowCount(0)
+
         if not os.path.exists(CONFIG_PATH):
-            return []
+            return
+
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f).get("excels", [])
+            excels = json.load(f).get("excels", [])
 
-    # --------------------------
-    # Guardar Excels en JSON
-    # --------------------------
-    def save_excels(self):
-        os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump({"excels": self.excels}, f, indent=4, ensure_ascii=False)
-        messagebox.showinfo("Guardado", "Configuración guardada correctamente.")
+        for excel in excels:
+            self.add_row(
+                excel.get("path", ""),
+                excel.get("backup", ""),
+                excel.get("horario", ""),
+                excel.get("activo", True)
+            )
 
-    # --------------------------
-    # Sincronizar Excel con horarios
-    # --------------------------
-    def sync_with_schedule(self):
-        for e in self.excels:
-            job = self.scheduler_uc.get_job(e["path"])
-            if job:
-                e["horario"] = job.get("horario", "")
-                e["backup"] = job.get("backup_path", "")
-                e["activo"] = job.get("activo", True)
-            else:
-                e.setdefault("horario", "")
-                e.setdefault("backup", "")
-                e.setdefault("activo", True)
+    def add_row(self, path, backup, horario, activo):
+        row = self.table.rowCount()
+        self.table.insertRow(row)
 
-    # --------------------------
-    # Agregar Excel (por botón)
-    # --------------------------
+        self.table.setItem(row, 0, self._item(path))
+        self.table.setItem(row, 1, self._item(backup))
+        self.table.setItem(row, 2, self._item(horario))
+
+        # Activo como SwitchButton
+        toggle = SwitchButton(self)
+        toggle.setChecked(activo)
+        self.table.setCellWidget(row, 3, toggle)
+
+    def _item(self, text):
+        from PyQt5.QtWidgets import QTableWidgetItem
+        item = QTableWidgetItem(text)
+        item.setFlags(item.flags())  # no editable
+        return item
+
+    # ------------------------
+    # Acciones
+    # ------------------------
     def add_excel(self):
-        path = filedialog.askopenfilename(title="Seleccionar archivo Excel", filetypes=[("Excel Files", "*.xlsx *.xlsm")])
-        if path and not any(e['path'] == path for e in self.excels):
-            self.excels.append({"path": path, "backup": "", "horario": "", "activo": True})
-            self.refresh_list()
-
-    # --------------------------
-    # Eliminar Excel
-    # --------------------------
-    def remove_excel(self):
-        selected = self.listbox.curselection()
-        if not selected:
-            return
-        idx = selected[0]
-        excel_path = self.excels[idx]["path"]
-        # Eliminar también de scheduler
-        try:
-            self.scheduler_uc.remove_job(excel_path)
-        except Exception:
-            pass
-        del self.excels[idx]
-        self.refresh_list()
-
-    # --------------------------
-    # Asignar Backup
-    # --------------------------
-    def assign_backup(self):
-        selected = self.listbox.curselection()
-        if not selected:
-            messagebox.showwarning("Seleccionar", "Selecciona primero un Excel de la lista.")
-            return
-        idx = selected[0]
-        path = filedialog.askopenfilename(title="Seleccionar archivo Backup", filetypes=[("Excel Files", "*.xlsx *.xlsm")])
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleccionar Excel",
+            "",
+            "Excel (*.xlsx *.xlsm)"
+        )
         if path:
-            self.excels[idx]["backup"] = path
-            excel_path = self.excels[idx]["path"]
-            job = self.scheduler_uc.get_job(excel_path)
-            if job:
-                job["backup_path"] = path
-                self.scheduler_uc._save_jobs()
-            self.refresh_list()
-            messagebox.showinfo("Backup asignado", f"Backup {path} asignado al Excel seleccionado.")
+            self.add_row(path, "", "", True)
 
-    # --------------------------
-    # Asignar Horario
-    # --------------------------
-    def set_horario(self):
-        selected = self.listbox.curselection()
-        if not selected:
-            messagebox.showwarning("Seleccionar", "Primero selecciona un Excel de la lista.")
-            return
-        idx = selected[0]
-        horario = self.horario_entry.get().strip()
-        if not horario:
-            messagebox.showwarning("Horario vacío", "Ingresa un horario en formato HH:MM.")
-            return
-        try:
-            h, m = map(int, horario.split(":"))
-            if not (0 <= h <= 23 and 0 <= m <= 59):
-                raise ValueError
-        except Exception:
-            messagebox.showerror("Error", f"Horario inválido: {horario}")
+    def assign_backup(self):
+        row = self.table.currentRow()
+        if row < 0:
             return
 
-        self.excels[idx]["horario"] = horario
-        excel_path = self.excels[idx]["path"]
-        backup = self.excels[idx].get("backup")
-        # Guardar en SchedulerUseCase
-        try:
-            job = self.scheduler_uc.get_job(excel_path)
-            if job:
-                job["horario"] = horario
-                job["backup_path"] = backup
-                job["activo"] = True
-                self.scheduler_uc._save_jobs()
-            else:
-                self.scheduler_uc.add_job(excel_path, horario, backup)
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo guardar el horario: {str(e)}")
-            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleccionar Backup",
+            "",
+            "Excel (*.xlsx *.xlsm)"
+        )
+        if path:
+            self.table.item(row, 1).setText(path)
 
-        self.refresh_list()
-        messagebox.showinfo("Horario asignado", f"Horario {horario} asignado a {excel_path}")
+    def save(self):
+        excels = []
 
-    # --------------------------
-    # Activar / Desactivar Horario
-    # --------------------------
-    def toggle_horario(self):
-        selected = self.listbox.curselection()
-        if not selected:
-            messagebox.showwarning("Seleccionar", "Primero selecciona un Excel de la lista.")
-            return
-        idx = selected[0]
-        excel_path = self.excels[idx]["path"]
-        job = self.scheduler_uc.get_job(excel_path)
-        if not job:
-            messagebox.showwarning("No programado", "Este Excel aún no tiene horario asignado.")
-            return
-        job["activo"] = not job.get("activo", True)
-        self.scheduler_uc._save_jobs()
-        self.excels[idx]["activo"] = job["activo"]
-        status = "ACTIVO" if job["activo"] else "INACTIVO"
-        self.refresh_list()
-        messagebox.showinfo("Estado cambiado", f"El Excel {excel_path} ahora está {status}.")
+        for row in range(self.table.rowCount()):
+            excels.append({
+                "path": self.table.item(row, 0).text(),
+                "backup": self.table.item(row, 1).text(),
+                "horario": self.table.item(row, 2).text(),
+                "activo": self.table.cellWidget(row, 3).isChecked()
+            })
 
-    # --------------------------
-    # Refrescar Listbox
-    # --------------------------
-    def refresh_list(self):
-        self.listbox.delete(0, tk.END)
-        for e in self.excels:
-            excel_path = e["path"]
-            backup = e.get("backup", "")
-            horario = e.get("horario", "")
-            activo = "ACTIVO" if e.get("activo", True) else "INACTIVO"
-            display = f"{excel_path} | Backup: {backup} | Horario: {horario} | {activo}"
-            self.listbox.insert(tk.END, display)
+        os.makedirs("config", exist_ok=True)
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump({"excels": excels}, f, indent=4)
 
-
-if __name__ == "__main__":
-    root = TkinterDnD.Tk()  # <--- reemplazamos Tk() por TkinterDnD.Tk()
-    ExcelManagerGUI(root)
-    root.mainloop()
+        InfoBar.success(
+            title="Guardado",
+            content="Configuración guardada correctamente",
+            position=InfoBarPosition.TOP,
+            parent=self
+        )
