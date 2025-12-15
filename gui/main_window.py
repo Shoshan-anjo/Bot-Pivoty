@@ -1,5 +1,4 @@
-# gui/main_window.py
-
+from PyQt5.QtWidgets import QWidget
 from qfluentwidgets import (
     FluentWindow,
     FluentIcon,
@@ -8,24 +7,36 @@ from qfluentwidgets import (
     setTheme,
     Theme
 )
+from dotenv import load_dotenv, dotenv_values, set_key
+import os
 
 from gui.excel_manager_gui import ExcelManagerView
 
-
 class MainWindow(FluentWindow):
-
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("BotExcel")
-        self.resize(800, 600)
+        # -------------------------
+        # Cargar variables de entorno
+        # -------------------------
+        load_dotenv()
+        self.env_path = ".env"
+        self.current_theme = os.getenv("THEME", "light").lower()
+        self._apply_theme(self.current_theme)
 
         # -------------------------
-        # Vista principal
+        # Configuración de ventana
+        # -------------------------
+        self.setWindowTitle("BotExcel")
+        self.resize(1200, 750)
+
+        # -------------------------
+        # Vista principal Excel
         # -------------------------
         self.excel_view = ExcelManagerView(self)
         self.excel_view.setObjectName("excel_manager")
 
+        # Añadir la vista Excel a la navegación superior
         self.addSubInterface(
             self.excel_view,
             FluentIcon.DOCUMENT,
@@ -34,36 +45,57 @@ class MainWindow(FluentWindow):
         )
 
         # -------------------------
-        # Botón de tema (sidebar abajo)
+        # Botón de cambio de tema (sidebar abajo)
         # -------------------------
-        self.theme_button = NavigationToolButton(
-            FluentIcon.CONSTRACT,
-            self
-        )
-        self.theme_button.setText("Tema: Claro")
-        self.theme_button.clicked.connect(self.toggle_theme)
+        try:
+            self.theme_button = NavigationToolButton(self)
+            self._update_theme_text()
+            self.theme_button.setIcon(FluentIcon.CONSTRACT)
+            self.theme_button.clicked.connect(self.toggle_theme)
 
-        self.navigationInterface.addWidget(
-            widget=self.theme_button,
-            routeKey="theme_switch",
-            position=NavigationItemPosition.BOTTOM
-        )
-
-        # -------------------------
-        # Tema inicial
-        # -------------------------
-        self.current_theme = Theme.LIGHT
-        setTheme(self.current_theme)
+            # Añadir correctamente el widget a la interfaz de navegación
+            self.navigationInterface.addWidget(
+                widget=self.theme_button,
+                routeKey="theme_switch",
+                position=NavigationItemPosition.BOTTOM
+            )
+        except Exception as e:
+            print(f"Error al agregar botón de tema: {e}")
 
     # -------------------------
-    # Toggle tema
+    # Aplicar tema
+    # -------------------------
+    def _apply_theme(self, theme_name):
+        if theme_name.lower() == "light":
+            setTheme(Theme.LIGHT)
+        else:
+            setTheme(Theme.DARK)
+
+    # -------------------------
+    # Actualizar texto del botón de tema
+    # -------------------------
+    def _update_theme_text(self):
+        if hasattr(self, 'theme_button'):
+            self.theme_button.setText(f"Tema: {self.current_theme.capitalize()}")
+
+    # -------------------------
+    # Cambiar tema
     # -------------------------
     def toggle_theme(self):
-        if self.current_theme == Theme.LIGHT:
-            self.current_theme = Theme.DARK
-            self.theme_button.setText("Tema: Oscuro")
+        if self.current_theme == "light":
+            self.current_theme = "dark"
         else:
-            self.current_theme = Theme.LIGHT
-            self.theme_button.setText("Tema: Claro")
+            self.current_theme = "light"
+        self._apply_theme(self.current_theme)
+        self._update_theme_text()
+        self._save_theme_env()
 
-        setTheme(self.current_theme)
+    # -------------------------
+    # Guardar tema en .env sin eliminar otras variables
+    # -------------------------
+    def _save_theme_env(self):
+        env_vars = dotenv_values(self.env_path)
+        env_vars["THEME"] = self.current_theme
+        with open(self.env_path, "w") as f:
+            for k, v in env_vars.items():
+                f.write(f"{k}={v}\n")
