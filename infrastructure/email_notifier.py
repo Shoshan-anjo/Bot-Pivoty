@@ -10,6 +10,19 @@ class EmailNotifier:
         self.logger = logger
         self.config = config
 
+    def _get_log_snippet(self, lines=20):
+        try:
+            log_dir = self.config.get("LOG_DIR", "logs")
+            log_file = self.config.get("LOG_FILE", "botexcel.log")
+            log_path = os.path.abspath(os.path.join(log_dir, log_file))
+            if os.path.exists(log_path):
+                with open(log_path, "r", encoding="utf-8") as f:
+                    content = f.readlines()
+                    return "".join(content[-lines:])
+        except:
+            pass
+        return "No se pudo recuperar el fragmento del log."
+
     def send_email(self, subject, body, attachments=None):
         mail_enabled = self.config.get_bool("MAIL_ENABLED", False)
         use_outlook = self.config.get_bool("USE_OUTLOOK_DESKTOP", True)
@@ -23,12 +36,34 @@ class EmailNotifier:
         attach_logs = self.config.get_bool("ATTACH_LOG_ON_ERROR", False)
         send_attachment = self.config.get_bool("MAIL_SEND_ATTACHMENT", True)
 
+        include_screenshots = self.config.get_bool("MAIL_INCLUDE_SCREENSHOTS", True)
+        include_log_snippet = self.config.get_bool("MAIL_INCLUDE_LOG_SNIPPET", True)
+
         if not to_addrs:
             self.logger.warning("MAIL_TO vacío → no se enviará correo.")
             return
 
+        # Enriquecer el cuerpo si hay error y está habilitado el snippet
+        if include_log_snippet and ("ERROR" in subject.upper() or "FALLÓ" in body.upper()):
+            body += "\n\n--- ÚLTIMAS LÍNEAS DEL REGISTRO ---\n"
+            body += self._get_log_snippet()
+
         # Preparar adjuntos
         final_attachments = attachments or []
+        
+        # Adjuntar capturas de pantalla si existen y está habilitado
+        if include_screenshots:
+            screenshot_dir = "logs/screenshots"
+            if os.path.exists(screenshot_dir):
+                try:
+                    screenshots = [os.path.join(screenshot_dir, f) for f in os.listdir(screenshot_dir) if f.endswith(".png")]
+                    if screenshots:
+                        # Solo las 2 más recientes para no saturar
+                        screenshots.sort(key=os.path.getmtime, reverse=True)
+                        final_attachments.extend(screenshots[:2])
+                except:
+                    pass
+
         if send_attachment and attach_logs:
             log_dir = self.config.get("LOG_DIR", "logs")
             log_file = self.config.get("LOG_FILE", "botexcel.log")
@@ -50,7 +85,8 @@ class EmailNotifier:
                 if from_addr:
                     mail.SentOnBehalfOfName = from_addr
 
-                for path in final_attachments:
+                # Usar conjunto para evitar duplicados
+                for path in set(final_attachments):
                     try:
                         mail.Attachments.Add(path)
                         self.logger.info(f"Adjuntando archivo: {path}")
@@ -80,7 +116,7 @@ class EmailNotifier:
             msg["To"] = ", ".join(to_addrs)
             msg.set_content(body)
 
-            for path in final_attachments:
+            for path in set(final_attachments):
                 try:
                     with open(path, "rb") as f:
                         data = f.read()

@@ -5,14 +5,14 @@ import json
 from datetime import datetime, time
 from domain.exceptions import ConfigError, RefreshJobError
 
-SCHEDULE_FILE = "config/schedule.json"
+SCHEDULE_FILE = "config/excels.json"
 
 class SchedulerUseCase:
     """
     Casos de uso del Scheduler:
     - Agregar, eliminar, modificar jobs
     - Validar horarios
-    - Guardar/leer schedule.json
+    - Guardar/leer excels.json
     """
 
     def __init__(self, schedule_file=None):
@@ -28,9 +28,13 @@ class SchedulerUseCase:
 
         try:
             with open(self.schedule_file, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                # Soportar tanto lista directa como envoltorio "excels"
+                if isinstance(data, dict) and "excels" in data:
+                    return data["excels"]
+                return data if isinstance(data, list) else []
         except json.JSONDecodeError:
-            raise ConfigError(f"Archivo de schedule inválido: {self.schedule_file}")
+            raise ConfigError(f"Archivo de configuración inválido: {self.schedule_file}")
 
     # --------------------------
     # Guardar jobs al archivo
@@ -38,7 +42,7 @@ class SchedulerUseCase:
     def _save_jobs(self):
         os.makedirs(os.path.dirname(self.schedule_file), exist_ok=True)
         with open(self.schedule_file, "w", encoding="utf-8") as f:
-            json.dump(self.jobs, f, indent=4, ensure_ascii=False)
+            json.dump({"excels": self.jobs}, f, indent=4, ensure_ascii=False)
 
     # --------------------------
     # Validar formato de hora HH:MM
@@ -60,8 +64,8 @@ class SchedulerUseCase:
         self._validate_time(horario)
 
         job = {
-            "excel_path": excel_path,
-            "backup_path": backup_path,
+            "path": excel_path,
+            "backup": backup_path,
             "horario": horario,
             "activo": True
         }
@@ -75,7 +79,7 @@ class SchedulerUseCase:
     # --------------------------
     def remove_job(self, excel_path):
         inicial_count = len(self.jobs)
-        self.jobs = [j for j in self.jobs if j["excel_path"] != excel_path]
+        self.jobs = [j for j in self.jobs if (j.get("path") or j.get("excel_path")) != excel_path]
         if len(self.jobs) == inicial_count:
             raise RefreshJobError(f"No se encontró job para: {excel_path}")
         self._save_jobs()
@@ -86,7 +90,8 @@ class SchedulerUseCase:
     def set_job_active(self, excel_path, activo=True):
         found = False
         for j in self.jobs:
-            if j["excel_path"] == excel_path:
+            path = j.get("path") or j.get("excel_path")
+            if path == excel_path:
                 j["activo"] = activo
                 found = True
                 break

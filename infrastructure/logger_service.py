@@ -19,6 +19,15 @@ class LoggerService:
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
 
+        # Limpiar log previo al iniciar (opcional, para evitar acumulación infinita de arranques)
+        file_path = os.path.join(self.log_dir, self.log_name)
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write("") # Vaciar
+            except:
+                pass
+
         self.logger = logging.getLogger("BotExcelLogger")
         self.logger.setLevel(self.log_level)
         self.logger.propagate = False  # 🔴 IMPORTANTE: evitar duplicados

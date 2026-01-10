@@ -1,13 +1,14 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
-    QFileDialog
+    QFileDialog, QHeaderView, QLabel
 )
 from PyQt5.QtGui import QFont, QRegExpValidator
-from PyQt5.QtCore import QRegExp
+from PyQt5.QtCore import QRegExp, QTimer, Qt
 from qfluentwidgets import (
     TableWidget, PushButton,
     LineEdit, InfoBar, InfoBarPosition,
-    FluentIcon, SwitchButton
+    FluentIcon, SwitchButton, PlainTextEdit,
+    TitleLabel, SubtitleLabel, BodyLabel
 )
 import json
 import os
@@ -27,11 +28,29 @@ class ExcelManagerView(QWidget):
         self.setFont(font)
 
         self.layout = QVBoxLayout(self)
+        self.layout.setSpacing(15)
+        self.layout.setContentsMargins(30, 20, 30, 20)
+
+        # -------------------------
+        # Encabezado
+        # -------------------------
+        header_layout = QVBoxLayout()
+        self.title_label = TitleLabel("Administrador de Archivos")
+        
+        self.subtitle_label = SubtitleLabel("Configura los archivos Excel que el bot debe actualizar automáticamente.")
+        self.subtitle_label.setTextColor("#808080", "#a0a0a0") # Light/Dark grey
+        
+        header_layout.addWidget(self.title_label)
+        header_layout.addWidget(self.subtitle_label)
+        self.layout.addLayout(header_layout)
 
         # -------------------------
         # Tabla
         # -------------------------
         self.table = TableWidget(self)
+        self.table.setBorderVisible(True)
+        self.table.setBorderRadius(8)
+        self.table.setWordWrap(False)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels([
             "Excel",
@@ -39,24 +58,64 @@ class ExcelManagerView(QWidget):
             "Horario (HH:MM)",
             "Activo"
         ])
+        
+        # Ajustar columnas
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        
         self.layout.addWidget(self.table)
+
+        # -------------------------
+        # Consola de Logs (NUEVO)
+        # -------------------------
+        self.layout.addSpacing(10)
+        self.log_header = SubtitleLabel("Registro de Actividad (Logs)")
+        self.layout.addWidget(self.log_header)
+
+        self.log_console = PlainTextEdit(self)
+        self.log_console.setReadOnly(True)
+        self.log_console.setFixedHeight(150)
+        
+        # Establecer fuente tipo consola sin romper el estilo del tema
+        console_font = QFont('Consolas', 10)
+        console_font.setStyleHint(QFont.Monospace)
+        self.log_console.setFont(console_font)
+        
+        self.layout.addWidget(self.log_console)
+
+        # Timer para actualizar logs
+        self.log_timer = QTimer(self)
+        self.log_timer.timeout.connect(self.update_logs)
+        self.log_timer.start(2000) # cada 2 segundos
+        self.last_log_pos = 0
 
         # -------------------------
         # Botones
         # -------------------------
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
         self.btn_add = PushButton("Agregar Excel", self, FluentIcon.ADD)
         self.btn_backup = PushButton("Asignar Backup", self, FluentIcon.FOLDER)
-        self.btn_save = PushButton("Guardar", self, FluentIcon.SAVE)
+        self.btn_del = PushButton("Eliminar", self, FluentIcon.DELETE)
+        
+        self.btn_save = PushButton("Guardar cambios", self, FluentIcon.SAVE)
+        self.btn_save.setFixedWidth(180)
 
         self.btn_add.clicked.connect(self.add_excel)
         self.btn_backup.clicked.connect(self.assign_backup)
+        self.btn_del.clicked.connect(self.delete_row)
         self.btn_save.clicked.connect(self.save)
 
         btn_layout.addWidget(self.btn_add)
         btn_layout.addWidget(self.btn_backup)
+        btn_layout.addWidget(self.btn_del)
+        btn_layout.addStretch()
         btn_layout.addWidget(self.btn_save)
         self.layout.addLayout(btn_layout)
+        self.layout.addSpacing(10)
 
         self.load_data()
 
@@ -135,6 +194,56 @@ class ExcelManagerView(QWidget):
         if path:
             self.table.item(row, 1).setText(path)
 
+    def delete_row(self):
+        row = self.table.currentRow()
+        if row < 0:
+            InfoBar.warning(
+                title="Aviso",
+                content="Por favor, selecciona una fila para eliminar",
+                position=InfoBarPosition.TOP,
+                parent=self
+            )
+            return
+        
+        self.table.removeRow(row)
+
+    def update_logs(self):
+        log_path = "logs/botexcel.log"
+        if not os.path.exists(log_path):
+            return
+
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                # Si es la primera vez o el archivo se achicó (rotación), leer desde el principio
+                f.seek(0, os.SEEK_END)
+                curr_pos = f.tell()
+                
+                if curr_pos < self.last_log_pos:
+                    self.last_log_pos = 0
+
+                f.seek(self.last_log_pos)
+                new_data = f.read()
+                
+                if new_data:
+                    # FILTRADO: Solo mostrar logs que no sean de inicialización técnica
+                    filtered_lines = []
+                    for line in new_data.strip().split("\n"):
+                        # Ignorar mensajes de arranque genéricos para limpiar la vista
+                        if "Scheduler ACTIVADO" in line or "iniciado correctamente" in line:
+                            continue
+                        filtered_lines.append(line)
+                    
+                    if filtered_lines:
+                        self.log_console.appendPlainText("\n".join(filtered_lines))
+                        self.last_log_pos = curr_pos
+                        # Auto-scroll
+                        self.log_console.ensureCursorVisible()
+                    else:
+                        # Si solo había líneas filtradas, igual actualizamos posición para no leerlas de nuevo
+                        self.last_log_pos = curr_pos
+        except:
+            pass
+
     # -------------------------
     # Guardar configuración
     # -------------------------
@@ -154,9 +263,14 @@ class ExcelManagerView(QWidget):
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump({"excels": excels}, f, indent=4)
 
+        # Notificar al scheduler de los cambios si estamos en MainWindow
+        parent_window = self.window()
+        if hasattr(parent_window, 'scheduler'):
+            parent_window.scheduler.reload_jobs()
+
         InfoBar.success(
             title="Guardado",
-            content="Configuración guardada correctamente",
+            content="Configuración guardada y programador actualizado",
             position=InfoBarPosition.TOP,
             parent=self
         )

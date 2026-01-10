@@ -12,14 +12,17 @@ from infrastructure.config_loader import ConfigLoader
 class SchedulerService:
     """
     Servicio que ejecuta los Excel según los horarios configurados
-    en schedule.json (SchedulerUseCase).
+    en excels.json (SchedulerUseCase).
     """
 
-    def __init__(self, config=None, logger=None):
+    def __init__(self, config=None, logger=None, execute_fn=None, status_callback=None):
         self.config = config or ConfigLoader()
         self.logger = logger or LoggerService(self.config.get("LOG_LEVEL", "INFO")).get_logger()
+        self.execute_fn = execute_fn or execute_refresh
+        self.status_callback = status_callback
         self.scheduler_uc = SchedulerUseCase()
         self.jobs_threads = []
+        self.is_running = False
 
     # --------------------------
     # Registrar jobs en schedule
@@ -32,9 +35,9 @@ class SchedulerService:
             return
 
         for job in active_jobs:
-            excel_path = job["excel_path"]
-            horario = job["horario"]
-            backup_path = job.get("backup_path")
+            excel_path = job.get("path") or job.get("excel_path")
+            horario = job.get("horario")
+            backup_path = job.get("backup") or job.get("backup_path")
 
             self.logger.info(f"Programando job: {excel_path} a las {horario}")
 
@@ -47,10 +50,22 @@ class SchedulerService:
     def _run_job_threaded(self, excel_path, backup_path=None):
         def task():
             self.logger.info(f"=== INICIO JOB PROGRAMADO: {excel_path} ===")
+            file_name = os.path.basename(excel_path)
+            
+            if self.status_callback:
+                self.status_callback("Actualizando Excel", f"Iniciando: {file_name}")
+
             try:
-                execute_refresh()  # Aquí se puede pasar parámetros si quieres actualizar solo este archivo
+                # Pass the specific file to only refresh this one
+                self.execute_fn(files=[excel_path])
+                
+                if self.status_callback:
+                    self.status_callback("Excel Actualizado", f"Tarea completada: {file_name}")
             except Exception as e:
                 self.logger.error(f"Error ejecutando job {excel_path}: {str(e)}")
+                if self.status_callback:
+                    self.status_callback("Error en Job", f"Falló {file_name}: {str(e)}")
+            
             self.logger.info(f"=== FIN JOB PROGRAMADO: {excel_path} ===")
 
         t = threading.Thread(target=task)
@@ -75,3 +90,11 @@ class SchedulerService:
         t = threading.Thread(target=self.start, daemon=True)
         t.start()
         return t
+
+    def reload_jobs(self):
+        """Limpia los jobs actuales y vuelve a cargar desde el archivo."""
+        self.logger.info("Recargando configuración del scheduler...")
+        schedule.clear()
+        self.scheduler_uc = SchedulerUseCase() # Forzar recarga de disco
+        self._register_jobs()
+        self.logger.info("Scheduler recargado correctamente.")

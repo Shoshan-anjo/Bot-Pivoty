@@ -3,7 +3,12 @@
 import time
 import pythoncom
 import win32com.client as win32
+import win32gui
+import win32ui
+import win32con
+import win32api
 import os
+from datetime import datetime
 from domain.exceptions import ExcelGatewayError
 
 class ExcelGateway:
@@ -13,6 +18,49 @@ class ExcelGateway:
         self.max_retries = config.get_int("MAX_RETRIES", 3)
         self.retry_interval = config.get_int("RETRY_INTERVAL_SECONDS", 15)
         self.validate_rows = config.get_bool("VALIDATE_ROWS_AFTER_REFRESH", True)
+        self.screenshot_on_error = config.get_bool("SCREENSHOT_ON_ERROR", True)
+
+    def _take_screenshot(self, name_prefix="error"):
+        try:
+            os.makedirs("logs/screenshots", exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"logs/screenshots/{name_prefix}_{timestamp}.png"
+            
+            # Use win32 for screenshot to avoid external deps if possible
+            hdesktop = win32gui.GetDesktopWindow()
+            width = win32api.GetSystemMetrics(win32con.SM_CXVIRTUALSCREEN)
+            height = win32api.GetSystemMetrics(win32con.SM_CYVIRTUALSCREEN)
+            left = win32api.GetSystemMetrics(win32con.SM_XVIRTUALSCREEN)
+            top = win32api.GetSystemMetrics(win32con.SM_YVIRTUALSCREEN)
+
+            desktop_dc = win32gui.GetWindowDC(hdesktop)
+            img_dc = win32ui.CreateDCFromHandle(desktop_dc)
+            mem_dc = img_dc.CreateCompatibleDC()
+
+            screenshot = win32ui.CreateBitmap()
+            screenshot.CreateCompatibleBitmap(img_dc, width, height)
+            mem_dc.SelectObject(screenshot)
+            mem_dc.BitBlt((0, 0), (width, height), img_dc, (left, top), win32con.SRCCOPY)
+            
+            screenshot.SaveBitmapFile(mem_dc, filename)
+            
+            # Clean up
+            mem_dc.DeleteDC()
+            win32gui.DeleteObject(screenshot.GetHandle())
+            img_dc.DeleteDC()
+            win32gui.ReleaseDC(hdesktop, desktop_dc)
+            
+            self.logger.info(f"Captura de pantalla guardada: {filename}")
+            return filename
+        except Exception as e:
+            self.logger.warning(f"No se pudo tomar la captura de pantalla: {e}")
+            return None
+
+    def _check_excel_health(self):
+        """Verifica si hay diálogos abiertos o estados que bloqueen Excel."""
+        # Por ahora simple, pero se puede expandir
+        self.logger.info("Verificando salud de Excel...")
+        return True
 
     def file_is_locked(self, path):
         try:
@@ -29,8 +77,11 @@ class ExcelGateway:
 
         attempt = 1
         while attempt <= self.max_retries:
+            excel = None
+            wb = None
             try:
                 self.logger.info(f"Intento {attempt} de {self.max_retries}...")
+                self._check_excel_health()
                 pythoncom.CoInitialize()
                 excel = win32.DispatchEx("Excel.Application")
                 excel.Visible = False
@@ -45,8 +96,11 @@ class ExcelGateway:
                 t_end = time.time()
 
                 wb.Save()
+                # Clean exit on success
                 wb.Close()
+                wb = None
                 excel.Quit()
+                excel = None
 
                 if self.validate_rows:
                     self._validate_excel_after_refresh(excel_path)
@@ -59,8 +113,22 @@ class ExcelGateway:
 
             except Exception as e:
                 self.logger.error(f"Error en intento {attempt}: {str(e)}")
+                
+                if self.screenshot_on_error:
+                    self._take_screenshot(f"error_intento_{attempt}")
+                
+                # Force cleanup on error
+                try:
+                    if wb: wb.Close(SaveChanges=False)
+                except: pass
+                
+                try:
+                    if excel: excel.Quit()
+                except: pass
+                
                 if attempt == self.max_retries:
                     raise ExcelGatewayError(f"Todos los intentos fallaron: {str(e)}")
+                
                 self.logger.info(f"Esperando {self.retry_interval}s antes del próximo intento...")
                 time.sleep(self.retry_interval)
 
