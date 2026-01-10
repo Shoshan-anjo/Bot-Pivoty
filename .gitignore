@@ -1,33 +1,31 @@
-# Entorno virtual de Python
-venv
-.env/
-.env.local
+# Entorno virtual
+venv/
 .env
-# Archivos de Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-.pytest_cache/
 
-# Logs
+# PyInstaller y Build
+dist/
+build/
+*.spec
+clean_project.py
+
+# Python Cache
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs y capturas
+logs/
 *.log
-*.logs
-# Archivos del sistema
-.DS_Store
-Thumbs.db
+
+# Configuraciones Locales
+# (Evitar subir tus rutas privadas de Excel)
+config/excels.json
+config/schedule.json
 
 # IDEs
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# Archivos temporales
-*.tmp
-*.temp
-
-# Tu entorno virtual específico
-/Bot-ActualizarExcel-env/
+# Sistema
+Thumbs.db
+.DS_Store
