@@ -2,7 +2,7 @@
 dist/
 build/
 Output/
-*.spec
+
 
 # Entorno virtual
 venv/
@@ -11,7 +11,6 @@ venv/
 # PyInstaller y Build
 dist/
 build/
-*.spec
 clean_project.py
 
 # Python Cache
