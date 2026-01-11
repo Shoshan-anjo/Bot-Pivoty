@@ -1,3 +1,9 @@
+# Carpetas de compilación y distribución
+dist/
+build/
+Output/
+*.spec
+
 # Entorno virtual
 venv/
 .env
