@@ -97,12 +97,9 @@ def execute_refresh(files=None):
 
     resumen += f"Tiempo total del bot: {total_global} segundos\nInicio: {t_start_global}\nFin: {t_end_global}\n"
     
-    # Recolectar archivos exitosos para adjuntar (si está habilitado en config)
-    excel_attachments = []
-    if config.get_bool("MAIL_SEND_ATTACHMENT", True):
-        for r in resultados:
-            if r["estado"].startswith("OK"):
-                excel_attachments.append(r["archivo"])
+    # Recolectar archivos exitosos para adjuntar (el notifier decidirá si incluirlos según el .env)
+    excel_attachments = [r["archivo"] for r in resultados if r["estado"].startswith("OK")]
 
     notifier.send_email("Pivoty - Resumen Multi-Archivo + Multi-Backup", resumen, attachments=excel_attachments)
+
     logger.info("=== FIN Pivoty MULTI-ARCHIVO + MULTI-BACKUP ===")

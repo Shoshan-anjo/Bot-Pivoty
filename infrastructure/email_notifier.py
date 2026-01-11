@@ -3,7 +3,9 @@ import os
 import smtplib
 from email.message import EmailMessage
 import pythoncom
+from dotenv import load_dotenv, dotenv_values
 import win32com.client as win32
+
 
 class EmailNotifier:
     def __init__(self, logger, config):
@@ -12,8 +14,11 @@ class EmailNotifier:
 
     def _get_log_snippet(self, lines=20):
         try:
-            log_dir = self.config.get("LOG_DIR", "logs")
-            log_file = self.config.get("LOG_FILE", "botexcel.log")
+            # Recargar para asegurar la ruta correcta
+            load_dotenv(override=True)
+            env = dotenv_values(".env")
+            log_dir = env.get("LOG_DIR", "logs")
+            log_file = env.get("LOG_FILE", "pivoty.log")
             log_path = os.path.abspath(os.path.join(log_dir, log_file))
             if os.path.exists(log_path):
                 with open(log_path, "r", encoding="utf-8") as f:
@@ -23,21 +28,28 @@ class EmailNotifier:
             pass
         return "No se pudo recuperar el fragmento del log."
 
+
     def send_email(self, subject, body, attachments=None):
-        mail_enabled = self.config.get_bool("MAIL_ENABLED", False)
-        use_outlook = self.config.get_bool("USE_OUTLOOK_DESKTOP", True)
+        # Recargar .env para asegurar que tenemos los destinatarios actualizados
+        load_dotenv(override=True)
+        env = dotenv_values(".env")
+
+        mail_enabled = env.get("MAIL_ENABLED", "false").lower() in ("true", "1", "yes")
+        use_outlook = env.get("USE_OUTLOOK_DESKTOP", "true").lower() in ("true", "1", "yes")
+
 
         if not mail_enabled:
             self.logger.info("MAIL_ENABLED=false → correo deshabilitado.")
             return
 
-        to_addrs = [addr.strip() for addr in self.config.get("MAIL_TO", "").split(",") if addr.strip()]
-        from_addr = self.config.get("MAIL_FROM")
-        attach_logs = self.config.get_bool("ATTACH_LOG_ON_ERROR", False)
-        send_attachment = self.config.get_bool("MAIL_SEND_ATTACHMENT", True)
+        to_addrs = [addr.strip() for addr in env.get("MAIL_TO", "").split(",") if addr.strip()]
+        from_addr = env.get("MAIL_FROM")
+        attach_logs = env.get("ATTACH_LOG_ON_ERROR", "false").lower() in ("true", "1", "yes")
+        send_attachment = env.get("MAIL_SEND_ATTACHMENT", "true").lower() in ("true", "1", "yes")
 
-        include_screenshots = self.config.get_bool("MAIL_INCLUDE_SCREENSHOTS", True)
-        include_log_snippet = self.config.get_bool("MAIL_INCLUDE_LOG_SNIPPET", True)
+        include_screenshots = env.get("MAIL_INCLUDE_SCREENSHOTS", "true").lower() in ("true", "1", "yes")
+        include_log_snippet = env.get("MAIL_INCLUDE_LOG_SNIPPET", "true").lower() in ("true", "1", "yes")
+
 
         if not to_addrs:
             self.logger.warning("MAIL_TO vacío → no se enviará correo.")
@@ -48,30 +60,35 @@ class EmailNotifier:
             body += "\n\n--- ÚLTIMAS LÍNEAS DEL REGISTRO ---\n"
             body += self._get_log_snippet()
 
-        # Preparar adjuntos
-        final_attachments = attachments or []
+        # Preparar adjuntos finales basados en la configuración actual
+        final_attachments = []
         
-        # Adjuntar capturas de pantalla si existen y está habilitado
+        # 1. Excel (solo si MAIL_SEND_ATTACHMENT es true)
+        if send_attachment and attachments:
+            final_attachments.extend(attachments)
+
+        # 2. Capturas de pantalla
         if include_screenshots:
-            screenshot_dir = "logs/screenshots"
+            screenshot_dir = env.get("LOG_DIR", "logs") + "/screenshots"
             if os.path.exists(screenshot_dir):
                 try:
                     screenshots = [os.path.join(screenshot_dir, f) for f in os.listdir(screenshot_dir) if f.endswith(".png")]
                     if screenshots:
-                        # Solo las 2 más recientes para no saturar
                         screenshots.sort(key=os.path.getmtime, reverse=True)
                         final_attachments.extend(screenshots[:2])
                 except:
                     pass
 
+        # 3. Logs (solo en error y si ATTACH_LOG_ON_ERROR es true)
         if attach_logs and ("ERROR" in subject.upper() or "FALLÓ" in body.upper()):
-            log_dir = self.config.get("LOG_DIR", "logs")
-            log_file = self.config.get("LOG_FILE", "botexcel.log")
+            log_dir = env.get("LOG_DIR", "logs")
+            log_file = env.get("LOG_FILE", "pivoty.log")
             log_path = os.path.abspath(os.path.join(log_dir, log_file))
             if os.path.exists(log_path):
                 final_attachments.append(log_path)
             else:
                 self.logger.warning(f"No existe el log para adjuntar: {log_path}")
+
 
         if use_outlook:
             # Enviar usando Outlook Desktop

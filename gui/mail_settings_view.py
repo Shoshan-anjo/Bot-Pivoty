@@ -250,10 +250,20 @@ class MailSettingsView(QWidget):
         # Configurar inicio automático
         self.startup_manager.set_startup(self.run_at_startup.isChecked())
 
-        with open(self.env_path, "w", encoding="utf-8") as f:
-            for k, v in env.items():
-                if v is not None:
-                    f.write(f"{k}={v}\n")
+        try:
+            with open(self.env_path, "w", encoding="utf-8") as f:
+                for k, v in env.items():
+                    if v is not None:
+                        f.write(f"{k}={v}\n")
+        except Exception as e:
+            InfoBar.error(
+                title="Error de Permisos",
+                content=f"No se pudo guardar en {self.env_path}. Intente ejecutar como administrador.",
+                position=InfoBarPosition.TOP,
+                parent=self
+            )
+            return
+
 
         if not silent:
             InfoBar.success(

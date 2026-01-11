@@ -10,7 +10,7 @@ class LoggerService:
     - Logs en consola
     """
 
-    def __init__(self, log_level="INFO", log_dir="logs", log_name="botexcel.log"):
+    def __init__(self, log_level="INFO", log_dir="logs", log_name="pivoty.log"):
         self.log_level = log_level.upper()
         self.log_dir = log_dir
         self.log_name = log_name

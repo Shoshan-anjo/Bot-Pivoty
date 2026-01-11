@@ -151,10 +151,10 @@ class ExcelManagerView(QWidget):
         # Horario como LineEdit con validador de HH:MM
         horario_edit = LineEdit()
         horario_edit.setPlaceholderText("HH:MM")
+        horario_edit.setInputMask("99:99") # Obliga al formato HH:MM de forma amigable
         horario_edit.setText(horario)
-        regex = QRegExp("([01]?[0-9]|2[0-3]):[0-5][0-9]")  # HH:MM 24h
-        horario_edit.setValidator(QRegExpValidator(regex))
         self.table.setCellWidget(row, 2, horario_edit)
+
 
         # Activo como SwitchButton
         toggle = SwitchButton(self)
@@ -208,7 +208,13 @@ class ExcelManagerView(QWidget):
         self.table.removeRow(row)
 
     def update_logs(self):
-        log_path = "logs/botexcel.log"
+        # Cargar configuración actual para obtener la ruta del log
+        from dotenv import dotenv_values
+        env = dotenv_values(".env")
+        log_dir = env.get("LOG_DIR", "logs")
+        log_name = env.get("LOG_FILE", "pivoty.log")
+        log_path = os.path.join(log_dir, log_name)
+
         if not os.path.exists(log_path):
             return
 
@@ -259,9 +265,19 @@ class ExcelManagerView(QWidget):
                 "activo": self.table.cellWidget(row, 3).isChecked()
             })
 
-        os.makedirs("config", exist_ok=True)
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump({"excels": excels}, f, indent=4)
+        try:
+            os.makedirs("config", exist_ok=True)
+            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump({"excels": excels}, f, indent=4)
+        except Exception as e:
+            InfoBar.error(
+                title="Error de Guardado",
+                content=f"No se pudo guardar en {CONFIG_PATH}. Verifique los permisos.",
+                position=InfoBarPosition.TOP,
+                parent=self
+            )
+            return
+
 
         # Notificar al scheduler de los cambios si estamos en MainWindow
         parent_window = self.window()

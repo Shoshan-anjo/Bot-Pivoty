@@ -6,14 +6,18 @@ class StartupManager:
     """Gestiona el inicio automático de la aplicación en Windows mediante el Registro."""
     
     REG_KEY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
-    APP_NAME = "BotExcel"
+    APP_NAME = "Pivoty"
 
     @staticmethod
     def get_app_command():
-        # Obtener la ruta del ejecutable de Python (venv) y el script principal
+        # Si estamos en un ejecutable congelado (PyInstaller)
+        if getattr(sys, 'frozen', False):
+            return f'"{sys.executable}"'
+        
+        # Modo desarrollo
         python_exe = sys.executable
-        # Asumimos que el script principal es 'gui.app' ejecutado vía modulo
         return f'"{python_exe}" -m gui.app'
+
 
     def set_startup(self, enable: bool):
         """Activa o desactiva el inicio con Windows."""

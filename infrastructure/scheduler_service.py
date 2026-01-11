@@ -1,6 +1,8 @@
 # infrastructure/scheduler_service.py
 
+import os
 import time
+
 import threading
 from datetime import datetime
 import schedule
@@ -49,24 +51,25 @@ class SchedulerService:
     # --------------------------
     def _run_job_threaded(self, excel_path, backup_path=None):
         def task():
-            self.logger.info(f"=== INICIO JOB PROGRAMADO: {excel_path} ===")
-            file_name = os.path.basename(excel_path)
-            
-            if self.status_callback:
-                self.status_callback("Actualizando Excel", f"Iniciando: {file_name}. Evite abrir el archivo ahora.")
-
             try:
+                self.logger.info(f"=== INICIO JOB PROGRAMADO: {excel_path} ===")
+                file_name = os.path.basename(excel_path)
+                
+                if self.status_callback:
+                    self.status_callback("Actualizando Excel", f"Iniciando: {file_name}. Evite abrir el archivo ahora.")
+
                 # Pass the specific file to only refresh this one
                 self.execute_fn(files=[excel_path])
                 
                 if self.status_callback:
                     self.status_callback("Excel Actualizado", f"Tarea completada: {file_name}")
+                
+                self.logger.info(f"=== FIN JOB PROGRAMADO: {excel_path} ===")
             except Exception as e:
-                self.logger.error(f"Error ejecutando job {excel_path}: {str(e)}")
+                self.logger.error(f"FALLO CRÍTICO en hilo de ejecución {excel_path}: {str(e)}")
                 if self.status_callback:
-                    self.status_callback("Error en Job", f"Falló {file_name}: {str(e)}")
-            
-            self.logger.info(f"=== FIN JOB PROGRAMADO: {excel_path} ===")
+                    self.status_callback("Error en Job", f"Falló {os.path.basename(excel_path)}: {str(e)}")
+
 
         t = threading.Thread(target=task)
         t.start()
@@ -98,3 +101,4 @@ class SchedulerService:
         self.scheduler_uc = SchedulerUseCase() # Forzar recarga de disco
         self._register_jobs()
         self.logger.info("Scheduler recargado correctamente.")
+

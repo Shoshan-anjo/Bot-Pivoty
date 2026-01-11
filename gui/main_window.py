@@ -11,6 +11,8 @@ from qfluentwidgets import (
     InfoBar,
     InfoBarPosition
 )
+from PyQt5.QtCore import QObject, pyqtSignal, Qt
+
 from dotenv import load_dotenv, dotenv_values
 import os
 
@@ -23,7 +25,14 @@ from core.utils import resource_path
 
 
 
+
+class StatusCommunicator(QObject):
+    """Clase para comunicar hilos secundarios con la GUI principal de forma segura."""
+    notify_signal = pyqtSignal(str, str)
+
+
 class MainWindow(FluentWindow):
+
     def __init__(self):
         super().__init__()
 
@@ -33,6 +42,11 @@ class MainWindow(FluentWindow):
         load_dotenv()
         self.env_path = ".env"
         self.env = dotenv_values(self.env_path)
+
+        # Comunicador de hilos
+        self.communicator = StatusCommunicator()
+        self.communicator.notify_signal.connect(self._safe_notify_job_status)
+
 
         # -------------------------
         # Tema
@@ -44,7 +58,7 @@ class MainWindow(FluentWindow):
         # Configuración de ventana
         # -------------------------
         self.setWindowTitle("Pivoty")
-        self.setWindowIcon(QIcon(resource_path("LogoIconoDino.ico")))
+        self.setWindowIcon(QIcon(resource_path("assets/LogoIconoDino.ico")))
         self.resize(1200, 750)
 
 
@@ -96,21 +110,26 @@ class MainWindow(FluentWindow):
         self._init_tray()
 
     def _init_scheduler(self):
-        logger_service = LoggerService(self.env.get("LOG_LEVEL", "INFO"))
+        logger_service = LoggerService(
+            log_level=self.env.get("LOG_LEVEL", "INFO"),
+            log_dir=self.env.get("LOG_DIR", "logs"),
+            log_name=self.env.get("LOG_FILE", "pivoty.log")
+        )
         self.logger = logger_service.get_logger()
         
         self.scheduler = SchedulerService(
             logger=self.logger,
             execute_fn=execute_refresh,
-            status_callback=self.notify_job_status
+            status_callback=self.communicator.notify_signal.emit
         )
+
         self.scheduler.start_in_thread()
         self.logger.info("Scheduler iniciado correctamente desde la GUI (hilo separado).")
 
     def _init_tray(self):
         self.tray_icon = QSystemTrayIcon(self)
         # Usamos el logo personalizado para el tray
-        self.tray_icon.setIcon(QIcon(resource_path("LogoIconoDino.ico")))
+        self.tray_icon.setIcon(QIcon(resource_path("assets/LogoIconoDino.ico")))
         self.tray_icon.setToolTip("Pivoty - Automatización Activa")
 
 
@@ -160,7 +179,11 @@ class MainWindow(FluentWindow):
             event.accept()
 
     def notify_job_status(self, title, message):
-        """Método para mostrar notificaciones del sistema."""
+        """Deprecated: Use self.communicator.notify_signal.emit instead."""
+        self.communicator.notify_signal.emit(title, message)
+
+    def _safe_notify_job_status(self, title, message):
+        """Método ejecutado SIEMPRE en el hilo principal de la GUI."""
         if hasattr(self, 'tray_icon') and self.tray_icon.isVisible():
             self.tray_icon.showMessage(title, message, QSystemTrayIcon.Information, 5000)
         
@@ -169,8 +192,10 @@ class MainWindow(FluentWindow):
             title=title,
             content=message,
             position=InfoBarPosition.TOP,
-            parent=self.excel_view
+            parent=self.excel_view,
+            duration=3000
         )
+
 
     # -------------------------
     # Aplicar tema
@@ -202,7 +227,11 @@ class MainWindow(FluentWindow):
     def _save_theme_env(self):
         env_vars = dotenv_values(self.env_path)
         env_vars["THEME"] = self.current_theme
-        with open(self.env_path, "w", encoding="utf-8") as f:
-            for k, v in env_vars.items():
-                if v is not None:
-                    f.write(f"{k}={v}\n")
+        try:
+            with open(self.env_path, "w", encoding="utf-8") as f:
+                for k, v in env_vars.items():
+                    if v is not None:
+                        f.write(f"{k}={v}\n")
+        except Exception as e:
+            print(f"No se pudo guardar el tema en .env: {e}")
+
