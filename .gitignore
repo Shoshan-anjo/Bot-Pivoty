@@ -12,6 +12,8 @@ access_keys.md
 # PyInstaller y Build
 dist/
 build/
+Pivoty.spec
+pivoty_setup.iss
 clean_project.py
 
 # Python Cache
