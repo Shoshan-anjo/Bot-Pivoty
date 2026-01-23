@@ -9,7 +9,6 @@ from dotenv import dotenv_values
 from PyQt5.QtCore import Qt
 import os
 from infrastructure.startup_manager import StartupManager
-from infrastructure.license_service import LicenseService
 
 class MailSettingsView(QWidget):
     def __init__(self, parent=None):
@@ -165,19 +164,6 @@ class MailSettingsView(QWidget):
         main_layout.addLayout(validate_layout)
 
         # -------------------------
-        # Sección de Licencia (V2)
-        # -------------------------
-        main_layout.addSpacing(20)
-        main_layout.addWidget(TitleLabel("Activación del Programa"))
-        main_layout.addWidget(BodyLabel("Este equipo necesita una llave vinculada a su identidad."))
-        
-        self.btn_hwid = PushButton("Obtener mi Llave para Activación")
-        self.btn_hwid.setIcon(FluentIcon.FINGERPRINT)
-        self.btn_hwid.setFixedWidth(250)
-        self.btn_hwid.clicked.connect(self.show_hwid_dialog)
-        main_layout.addWidget(self.btn_hwid)
-
-        # -------------------------
         # Botón Guardar
         # -------------------------
         main_layout.addSpacing(30)
@@ -295,28 +281,4 @@ class MailSettingsView(QWidget):
                 content="Configuración guardada correctamente",
                 position=InfoBarPosition.TOP,
                 parent=self
-            )
-
-    def show_hwid_dialog(self):
-        """Muestra el ID único del hardware para activación."""
-        hwid = LicenseService.get_hwid()
-        w = MessageBox(
-            "Tu Llave de Activación",
-            f"El código único de esta computadora es:\n\n{hwid}\n\n"
-            "Envía este código a Shohan para activar tu Pivoty.",
-            self
-        )
-        w.yesButton.setText("Copiar mi Código")
-        w.cancelButton.setText("Cerrar")
-
-        if w.exec():
-            from PyQt5.QtWidgets import QApplication
-            clipboard = QApplication.clipboard()
-            clipboard.setText(hwid)
-            InfoBar.success(
-                title="Copiado",
-                content="ID copiado al portapapeles",
-                position=InfoBarPosition.TOP,
-                parent=self,
-                duration=2000
             )
