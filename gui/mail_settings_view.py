@@ -2,11 +2,14 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from PyQt5.QtGui import QFont, QIntValidator
 from qfluentwidgets import (
     LineEdit, SwitchButton, PushButton, InfoBar, 
-    InfoBarPosition, FluentIcon, TitleLabel, SubtitleLabel, BodyLabel
+    InfoBarPosition, FluentIcon, TitleLabel, SubtitleLabel, BodyLabel,
+    MessageBox
 )
 from dotenv import dotenv_values
 from PyQt5.QtCore import Qt
+import os
 from infrastructure.startup_manager import StartupManager
+from infrastructure.license_service import LicenseService
 
 class MailSettingsView(QWidget):
     def __init__(self, parent=None):
@@ -30,10 +33,10 @@ class MailSettingsView(QWidget):
         # -------------------------
         # Encabezado Correo
         # -------------------------
-        header_mail = TitleLabel("Configuración de Notificaciones")
+        header_mail = TitleLabel("Avisos por Correo")
         main_layout.addWidget(header_mail)
 
-        subtitle_mail = SubtitleLabel("Define quién recibe los reportes. Se usa Outlook automáticamente.")
+        subtitle_mail = SubtitleLabel("Define quién recibe los informes detallados.")
         subtitle_mail.setTextColor("#808080", "#a0a0a0")
         main_layout.addWidget(subtitle_mail)
         main_layout.addSpacing(5)
@@ -80,7 +83,7 @@ class MailSettingsView(QWidget):
         self.include_screenshots = SwitchButton(text="Capturas de Error")
         self.include_screenshots.setChecked(self.env.get("MAIL_INCLUDE_SCREENSHOTS", "true") == "true")
         
-        self.include_logs = SwitchButton(text="Snippet de Logs")
+        self.include_logs = SwitchButton(text="Resumen de actividad")
         self.include_logs.setChecked(self.env.get("MAIL_INCLUDE_LOG_SNIPPET", "true") == "true")
 
         content_layout.addWidget(self.send_attachment)
@@ -102,10 +105,10 @@ class MailSettingsView(QWidget):
         # Encabezado Actualización
         # -------------------------
         main_layout.addSpacing(20)
-        header_refresh = TitleLabel("Parámetros de Robustez")
+        header_refresh = TitleLabel("Ajustes de Seguridad")
         main_layout.addWidget(header_refresh)
 
-        subtitle_refresh = SubtitleLabel("Configura reintentos y validaciones automáticas.")
+        subtitle_refresh = SubtitleLabel("Configura los intentos automáticos si algo falla.")
         subtitle_refresh.setTextColor("#808080", "#a0a0a0")
         main_layout.addWidget(subtitle_refresh)
         main_layout.addSpacing(5)
@@ -160,6 +163,19 @@ class MailSettingsView(QWidget):
         validate_layout.addWidget(self.min_rows)
         validate_layout.addStretch()
         main_layout.addLayout(validate_layout)
+
+        # -------------------------
+        # Sección de Licencia (V2)
+        # -------------------------
+        main_layout.addSpacing(20)
+        main_layout.addWidget(TitleLabel("Activación del Programa"))
+        main_layout.addWidget(BodyLabel("Este equipo necesita una llave vinculada a su identidad."))
+        
+        self.btn_hwid = PushButton("Obtener mi Llave para Activación")
+        self.btn_hwid.setIcon(FluentIcon.FINGERPRINT)
+        self.btn_hwid.setFixedWidth(250)
+        self.btn_hwid.clicked.connect(self.show_hwid_dialog)
+        main_layout.addWidget(self.btn_hwid)
 
         # -------------------------
         # Botón Guardar
@@ -251,14 +267,22 @@ class MailSettingsView(QWidget):
         self.startup_manager.set_startup(self.run_at_startup.isChecked())
 
         try:
+            import ctypes
+            # Remover atributo oculto si existe para escribir
+            if os.path.exists(self.env_path):
+                ctypes.windll.kernel32.SetFileAttributesW(self.env_path, 128) # Normal
+
             with open(self.env_path, "w", encoding="utf-8") as f:
                 for k, v in env.items():
                     if v is not None:
                         f.write(f"{k}={v}\n")
+
+            # Restaurar oculto
+            ctypes.windll.kernel32.SetFileAttributesW(self.env_path, 2) # Hidden
         except Exception as e:
             InfoBar.error(
-                title="Error de Permisos",
-                content=f"No se pudo guardar en {self.env_path}. Intente ejecutar como administrador.",
+                title="Error de Guardado",
+                content=f"No se pudo guardar: {str(e)}",
                 position=InfoBarPosition.TOP,
                 parent=self
             )
@@ -271,4 +295,28 @@ class MailSettingsView(QWidget):
                 content="Configuración guardada correctamente",
                 position=InfoBarPosition.TOP,
                 parent=self
+            )
+
+    def show_hwid_dialog(self):
+        """Muestra el ID único del hardware para activación."""
+        hwid = LicenseService.get_hwid()
+        w = MessageBox(
+            "Tu Llave de Activación",
+            f"El código único de esta computadora es:\n\n{hwid}\n\n"
+            "Envía este código a Shohan para activar tu Pivoty.",
+            self
+        )
+        w.yesButton.setText("Copiar mi Código")
+        w.cancelButton.setText("Cerrar")
+
+        if w.exec():
+            from PyQt5.QtWidgets import QApplication
+            clipboard = QApplication.clipboard()
+            clipboard.setText(hwid)
+            InfoBar.success(
+                title="Copiado",
+                content="ID copiado al portapapeles",
+                position=InfoBarPosition.TOP,
+                parent=self,
+                duration=2000
             )

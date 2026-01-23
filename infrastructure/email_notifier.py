@@ -57,7 +57,7 @@ class EmailNotifier:
 
         # Enriquecer el cuerpo si hay error y está habilitado el snippet
         if include_log_snippet and ("ERROR" in subject.upper() or "FALLÓ" in body.upper()):
-            body += "\n\n--- ÚLTIMAS LÍNEAS DEL REGISTRO ---\n"
+            body += "\n\n--- RESUMEN DE LO QUE PASÓ EN EL EQUIPO ---\n"
             body += self._get_log_snippet()
 
         # Preparar adjuntos finales basados en la configuración actual
@@ -106,14 +106,14 @@ class EmailNotifier:
                 for path in set(final_attachments):
                     try:
                         mail.Attachments.Add(path)
-                        self.logger.info(f"Adjuntando archivo: {path}")
+                        self.logger.info(f"Añadiendo archivo al correo: {os.path.basename(path)}")
                     except Exception as e:
-                        self.logger.warning(f"No se pudo adjuntar {path}: {e}")
+                        self.logger.warning(f"No se pudo incluir {os.path.basename(path)}: {e}")
 
                 mail.Send()
-                self.logger.info("Correo enviado correctamente vía Outlook Desktop.")
+                self.logger.info("¡Aviso enviado con éxito por Outlook!")
             except Exception as e:
-                self.logger.warning(f"Fallo al enviar correo vía Outlook Desktop: {e}")
+                self.logger.warning(f"Hubo un pequeño problema al enviar el correo: {e}")
             finally:
                 try:
                     pythoncom.CoUninitialize()

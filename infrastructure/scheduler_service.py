@@ -25,6 +25,7 @@ class SchedulerService:
         self.scheduler_uc = SchedulerUseCase()
         self.jobs_threads = []
         self.is_running = False
+        self._stop_event = threading.Event()
 
     # --------------------------
     # Registrar jobs en schedule
@@ -33,7 +34,7 @@ class SchedulerService:
         active_jobs = self.scheduler_uc.get_active_jobs()
 
         if not active_jobs:
-            self.logger.warning("No hay jobs activos configurados en schedule.json")
+            self.logger.warning("No tienes archivos marcados como activos para actualizar.")
             return
 
         for job in active_jobs:
@@ -41,7 +42,7 @@ class SchedulerService:
             horario = job.get("horario")
             backup_path = job.get("backup") or job.get("backup_path")
 
-            self.logger.info(f"Programando job: {excel_path} a las {horario}")
+            self.logger.info(f"Tarea programada: {excel_path} a las {horario}")
 
             # schedule.every().day.at(horario) ejecuta execute_refresh
             schedule.every().day.at(horario).do(self._run_job_threaded, excel_path=excel_path, backup_path=backup_path)
@@ -52,11 +53,11 @@ class SchedulerService:
     def _run_job_threaded(self, excel_path, backup_path=None):
         def task():
             try:
-                self.logger.info(f"=== INICIO JOB PROGRAMADO: {excel_path} ===")
+                self.logger.info(f"=== INICIO DE TAREA AUTOMÁTICA: {excel_path} ===")
                 file_name = os.path.basename(excel_path)
                 
                 if self.status_callback:
-                    self.status_callback("Actualizando Excel", f"Iniciando: {file_name}. Evite abrir el archivo ahora.")
+                    self.status_callback("Actualizando Datos", f"Procesando: {file_name}. Por favor, no abras el Excel.")
 
                 # Pass the specific file to only refresh this one
                 self.execute_fn(files=[excel_path])
@@ -68,7 +69,7 @@ class SchedulerService:
             except Exception as e:
                 self.logger.error(f"FALLO CRÍTICO en hilo de ejecución {excel_path}: {str(e)}")
                 if self.status_callback:
-                    self.status_callback("Error en Job", f"Falló {os.path.basename(excel_path)}: {str(e)}")
+                    self.status_callback("Aviso de Error", f"No se pudo completar {os.path.basename(excel_path)}: {str(e)}")
 
 
         t = threading.Thread(target=task)
@@ -79,12 +80,21 @@ class SchedulerService:
     # Iniciar el scheduler
     # --------------------------
     def start(self):
-        self.logger.info("Scheduler ACTIVADO")
+        self.logger.info("El reloj de tareas está ENCENDIDO")
         self._register_jobs()
+        self.is_running = True
 
-        while True:
+        while not self._stop_event.is_set():
             schedule.run_pending()
             time.sleep(1)
+        
+        self.logger.info("El reloj de tareas se ha DETENIDO limpiamente.")
+        self.is_running = False
+
+    def stop(self):
+        """Detiene el bucle del scheduler."""
+        self.logger.info("Solicitando detención del scheduler...")
+        self._stop_event.set()
 
     # --------------------------
     # Método para ejecutar desde GUI (no bloqueante)
@@ -96,7 +106,7 @@ class SchedulerService:
 
     def reload_jobs(self):
         """Limpia los jobs actuales y vuelve a cargar desde el archivo."""
-        self.logger.info("Recargando configuración del scheduler...")
+        self.logger.info("Actualizando tus horarios de actualización...")
         schedule.clear()
         self.scheduler_uc = SchedulerUseCase() # Forzar recarga de disco
         self._register_jobs()

@@ -160,9 +160,19 @@ class MainWindow(FluentWindow):
                 self.activateWindow()
 
     def _force_quit(self):
-        self.tray_icon.hide()
+        """Salida completa y limpia del programa."""
+        if hasattr(self, 'scheduler'):
+            self.scheduler.stop()
+        
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.hide()
+            self.tray_icon.deleteLater()
+            
         from PyQt5.QtWidgets import QApplication
         QApplication.quit()
+        # Forzar el fin del proceso si queda algún hilo rebelde
+        import os
+        os._exit(0)
 
     def closeEvent(self, event):
         """Sobrescribir el cierre para minimizar al tray."""
@@ -228,10 +238,18 @@ class MainWindow(FluentWindow):
         env_vars = dotenv_values(self.env_path)
         env_vars["THEME"] = self.current_theme
         try:
+            import ctypes
+            # Remover atributo oculto si existe para poder escribir
+            if os.path.exists(self.env_path):
+                ctypes.windll.kernel32.SetFileAttributesW(self.env_path, 128) # 128 = Normal
+
             with open(self.env_path, "w", encoding="utf-8") as f:
                 for k, v in env_vars.items():
                     if v is not None:
                         f.write(f"{k}={v}\n")
+            
+            # Restaurar atributo oculto
+            ctypes.windll.kernel32.SetFileAttributesW(self.env_path, 2) # 2 = Hidden
         except Exception as e:
             print(f"No se pudo guardar el tema en .env: {e}")
 

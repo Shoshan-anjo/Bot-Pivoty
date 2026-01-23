@@ -25,7 +25,7 @@ def execute_refresh(files=None):
     backups = [j.get("backup", "") for j in all_jobs if j.get("activo", True)] if not files else []
 
     if not principals:
-        logger.info("No hay archivos activos para actualizar.")
+        logger.info("Aún no tienes archivos activos para actualizar.")
         return
 
     resultados = []
@@ -33,7 +33,7 @@ def execute_refresh(files=None):
     for idx, principal_path in enumerate(principals):
         backup_path = backups[idx] if backups else None
         t_file_start = datetime.now(tz)
-        logger.info(f"Iniciando archivo principal: {principal_path}")
+        logger.info(f"Empezando a procesar el archivo: {principal_path}")
 
         try:
             job = RefreshJob(principal_path)
@@ -50,9 +50,9 @@ def execute_refresh(files=None):
             })
 
         except Exception as e:
-            logger.error(f"Error con archivo principal {principal_path}: {str(e)}")
+            logger.error(f"Hubo un problema con el archivo {principal_path}: {str(e)}")
             if backup_path:
-                logger.info(f"Intentando BACKUP: {backup_path}")
+                logger.info(f"Probando ahora con la copia de seguridad (backup): {backup_path}")
                 try:
                     job_bk = RefreshJob(backup_path)
                     gateway = ExcelGateway(logger, config)
@@ -67,7 +67,7 @@ def execute_refresh(files=None):
                         "backup_path": backup_path
                     })
                 except Exception as e2:
-                    logger.error(f"Backup también falló: {str(e2)}")
+                    logger.error(f"La copia de seguridad también tuvo problemas: {str(e2)}")
                     resultados.append({
                         "archivo": principal_path,
                         "estado": "ERROR",
@@ -85,7 +85,7 @@ def execute_refresh(files=None):
     # Resumen final
     t_end_global = datetime.now(tz)
     total_global = round((t_end_global - t_start_global).total_seconds(), 2)
-    resumen = "RESUMEN DE ACTUALIZACIÓN\n\n"
+    resumen = "REPORTE DE LO QUE HIZO EL BOT\n\n"
     for r in resultados:
         if r["estado"].startswith("OK"):
             resumen += f"✔ {r['archivo']}\n   Estado: {r['estado']}\n   Duración: {r['duracion']}s\n   Tiempo Refresh: {r['refresh_time']}s\n"
@@ -100,6 +100,6 @@ def execute_refresh(files=None):
     # Recolectar archivos exitosos para adjuntar (el notifier decidirá si incluirlos según el .env)
     excel_attachments = [r["archivo"] for r in resultados if r["estado"].startswith("OK")]
 
-    notifier.send_email("Pivoty - Resumen Multi-Archivo + Multi-Backup", resumen, attachments=excel_attachments)
+    notifier.send_email("Pivoty - Reporte de archivos actualizados", resumen, attachments=excel_attachments)
 
-    logger.info("=== FIN Pivoty MULTI-ARCHIVO + MULTI-BACKUP ===")
+    logger.info("=== Tareas terminadas con éxito ===")

@@ -35,9 +35,9 @@ class ExcelManagerView(QWidget):
         # Encabezado
         # -------------------------
         header_layout = QVBoxLayout()
-        self.title_label = TitleLabel("Administrador de Archivos")
+        self.title_label = TitleLabel("Tus Archivos de Excel")
         
-        self.subtitle_label = SubtitleLabel("Configura los archivos Excel que el bot debe actualizar automáticamente.")
+        self.subtitle_label = SubtitleLabel("Lista de archivos que el bot actualizará automáticamente.")
         self.subtitle_label.setTextColor("#808080", "#a0a0a0") # Light/Dark grey
         
         header_layout.addWidget(self.title_label)
@@ -68,38 +68,16 @@ class ExcelManagerView(QWidget):
         
         self.layout.addWidget(self.table)
 
-        # -------------------------
-        # Consola de Logs (NUEVO)
-        # -------------------------
-        self.layout.addSpacing(10)
-        self.log_header = SubtitleLabel("Registro de Actividad (Logs)")
-        self.layout.addWidget(self.log_header)
-
-        self.log_console = PlainTextEdit(self)
-        self.log_console.setReadOnly(True)
-        self.log_console.setFixedHeight(150)
-        
-        # Establecer fuente tipo consola sin romper el estilo del tema
-        console_font = QFont('Consolas', 10)
-        console_font.setStyleHint(QFont.Monospace)
-        self.log_console.setFont(console_font)
-        
-        self.layout.addWidget(self.log_console)
-
-        # Timer para actualizar logs
-        self.log_timer = QTimer(self)
-        self.log_timer.timeout.connect(self.update_logs)
-        self.log_timer.start(2000) # cada 2 segundos
-        self.last_log_pos = 0
+        self.layout.addWidget(self.table)
 
         # -------------------------
         # Botones
         # -------------------------
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(10)
-        self.btn_add = PushButton("Agregar Excel", self, FluentIcon.ADD)
+        self.btn_add = PushButton("Añadir archivo", self, FluentIcon.ADD)
         self.btn_backup = PushButton("Asignar Backup", self, FluentIcon.FOLDER)
-        self.btn_del = PushButton("Eliminar", self, FluentIcon.DELETE)
+        self.btn_del = PushButton("Quitar de la lista", self, FluentIcon.DELETE)
         
         self.btn_save = PushButton("Guardar cambios", self, FluentIcon.SAVE)
         self.btn_save.setFixedWidth(180)
@@ -206,49 +184,6 @@ class ExcelManagerView(QWidget):
             return
         
         self.table.removeRow(row)
-
-    def update_logs(self):
-        # Cargar configuración actual para obtener la ruta del log
-        from dotenv import dotenv_values
-        env = dotenv_values(".env")
-        log_dir = env.get("LOG_DIR", "logs")
-        log_name = env.get("LOG_FILE", "pivoty.log")
-        log_path = os.path.join(log_dir, log_name)
-
-        if not os.path.exists(log_path):
-            return
-
-        try:
-            with open(log_path, "r", encoding="utf-8") as f:
-                # Si es la primera vez o el archivo se achicó (rotación), leer desde el principio
-                f.seek(0, os.SEEK_END)
-                curr_pos = f.tell()
-                
-                if curr_pos < self.last_log_pos:
-                    self.last_log_pos = 0
-
-                f.seek(self.last_log_pos)
-                new_data = f.read()
-                
-                if new_data:
-                    # FILTRADO: Solo mostrar logs que no sean de inicialización técnica
-                    filtered_lines = []
-                    for line in new_data.strip().split("\n"):
-                        # Ignorar mensajes de arranque genéricos para limpiar la vista
-                        if "Scheduler ACTIVADO" in line or "iniciado correctamente" in line:
-                            continue
-                        filtered_lines.append(line)
-                    
-                    if filtered_lines:
-                        self.log_console.appendPlainText("\n".join(filtered_lines))
-                        self.last_log_pos = curr_pos
-                        # Auto-scroll
-                        self.log_console.ensureCursorVisible()
-                    else:
-                        # Si solo había líneas filtradas, igual actualizamos posición para no leerlas de nuevo
-                        self.last_log_pos = curr_pos
-        except:
-            pass
 
     # -------------------------
     # Guardar configuración

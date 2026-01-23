@@ -14,9 +14,9 @@ def main():
     if not os.path.exists(".env"):
         ctypes.windll.user32.MessageBoxW(
             0, 
-            "⚠️ Error Crítico: No se encontró el archivo de licencia o configuración (.env).\n\n"
-            "Por favor, contacta con Shohan para obtener tu copia personalizada de Pivoty.", 
-            "Pivoty - Error de Activación", 
+            "⚠️ Error de Activación: No se encontró tu llave de acceso (.env).\n\n"
+            "Por favor, contacta con Shohan para recibir tu archivo de activación de Pivoty.", 
+            "Pivoty - Necesitas Activar", 
             0x10 | 0x0  # Icono de Error + Botón OK
         )
         sys.exit(1)
