@@ -9,12 +9,24 @@ venv/
 .env
 access_keys.md
 
-# PyInstaller y Build
-dist/
-build/
+# --- PROTECCIÓN DE PROPIEDAD INTELECTUAL ---
+# Estos archivos contienen la lógica central y NO se deben subir al repo público
+main.py
+application/
+domain/
+core/
+infrastructure/cloud_validator.py
+infrastructure/excel_gateway.py
+infrastructure/email_notifier.py
+infrastructure/license_service.py
+
+# Archivos de build y scripts sensibles
 Pivoty.spec
 pivoty_setup.iss
 clean_project.py
+dist/
+build/
+Output/
 
 # Python Cache
 **/__pycache__/

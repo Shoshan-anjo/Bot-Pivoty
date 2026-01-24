@@ -3,7 +3,7 @@ from PyQt5.QtGui import QFont, QIntValidator
 from qfluentwidgets import (
     LineEdit, SwitchButton, PushButton, InfoBar, 
     InfoBarPosition, FluentIcon, TitleLabel, SubtitleLabel, BodyLabel,
-    MessageBox
+    MessageBox, PasswordLineEdit
 )
 from dotenv import dotenv_values
 from PyQt5.QtCore import Qt
@@ -25,20 +25,29 @@ class MailSettingsView(QWidget):
         self.env = dotenv_values(self.env_path)
         self.startup_manager = StartupManager()
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(15)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setSpacing(15)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
 
-        # -------------------------
-        # Encabezado Correo
-        # -------------------------
+        # Contenedor de Ajustes (Visible por defecto)
+        self.settings_container = QWidget()
+        self.settings_layout = QVBoxLayout(self.settings_container)
+        self.settings_layout.setSpacing(15)
+        self.settings_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.main_layout.addWidget(self.settings_container)
+
+        self._init_settings_ui(self.settings_layout)
+
+    def _init_settings_ui(self, layout):
+        # Mover toda la lógica anterior aquí, reemplazando 'main_layout' por 'layout'
         header_mail = TitleLabel("Avisos por Correo")
-        main_layout.addWidget(header_mail)
+        layout.addWidget(header_mail)
 
         subtitle_mail = SubtitleLabel("Define quién recibe los informes detallados.")
         subtitle_mail.setTextColor("#808080", "#a0a0a0")
-        main_layout.addWidget(subtitle_mail)
-        main_layout.addSpacing(5)
+        layout.addWidget(subtitle_mail)
+        layout.addSpacing(5)
 
         # Destinatarios
         self.recipients_input = LineEdit()
@@ -55,12 +64,12 @@ class MailSettingsView(QWidget):
         self.btn_test.clicked.connect(self.send_test_email)
         to_layout.addWidget(self.btn_test)
         
-        main_layout.addLayout(to_layout)
+        layout.addLayout(to_layout)
 
         # -------------------------
         # Toggles de Configuración
         # -------------------------
-        main_layout.addSpacing(5)
+        layout.addSpacing(5)
         
         # Grupo 1: General
         group_general = QHBoxLayout()
@@ -71,10 +80,10 @@ class MailSettingsView(QWidget):
         group_general.addWidget(self.enable_mail)
         group_general.addWidget(self.run_at_startup)
         group_general.addStretch()
-        main_layout.addLayout(group_general)
+        layout.addLayout(group_general)
 
         # Grupo 2: Contenido del Reporte
-        main_layout.addWidget(BodyLabel("Contenido del Reporte:"))
+        layout.addWidget(BodyLabel("Contenido del Reporte:"))
         content_layout = QHBoxLayout()
         self.send_attachment = SwitchButton(text="Adjuntar Excel")
         self.send_attachment.setChecked(self.env.get("MAIL_SEND_ATTACHMENT", "true") == "true")
@@ -89,7 +98,7 @@ class MailSettingsView(QWidget):
         content_layout.addWidget(self.include_screenshots)
         content_layout.addWidget(self.include_logs)
         content_layout.addStretch()
-        main_layout.addLayout(content_layout)
+        layout.addLayout(content_layout)
 
         # -------------------------
         # Estado de Outlook
@@ -97,20 +106,20 @@ class MailSettingsView(QWidget):
         status_layout = QHBoxLayout()
         self.status_label = BodyLabel("Estado de Outlook: Verificando...")
         status_layout.addWidget(self.status_label)
-        main_layout.addLayout(status_layout)
+        layout.addLayout(status_layout)
         self.check_outlook_status()
 
         # -------------------------
         # Encabezado Actualización
         # -------------------------
-        main_layout.addSpacing(20)
+        layout.addSpacing(20)
         header_refresh = TitleLabel("Ajustes de Seguridad")
-        main_layout.addWidget(header_refresh)
+        layout.addWidget(header_refresh)
 
         subtitle_refresh = SubtitleLabel("Configura los intentos automáticos si algo falla.")
         subtitle_refresh.setTextColor("#808080", "#a0a0a0")
-        main_layout.addWidget(subtitle_refresh)
-        main_layout.addSpacing(5)
+        layout.addWidget(subtitle_refresh)
+        layout.addSpacing(5)
 
         int_validator_repeat = QIntValidator(1, 100)
         int_validator_retry = QIntValidator(0, 1000)
@@ -143,10 +152,10 @@ class MailSettingsView(QWidget):
         repeat_layout.addWidget(interval_label)
         repeat_layout.addWidget(self.retry_interval)
         repeat_layout.addStretch()
-        main_layout.addLayout(repeat_layout)
+        layout.addLayout(repeat_layout)
 
         # Validación de filas
-        main_layout.addSpacing(10)
+        layout.addSpacing(10)
         validate_layout = QHBoxLayout()
         self.validate_rows = SwitchButton(text="Validar filas mínimas")
         self.validate_rows.setChecked(self.env.get("VALIDATE_ROWS_AFTER_REFRESH", "true") == "true")
@@ -161,19 +170,19 @@ class MailSettingsView(QWidget):
         validate_layout.addWidget(BodyLabel("Mínimo:"))
         validate_layout.addWidget(self.min_rows)
         validate_layout.addStretch()
-        main_layout.addLayout(validate_layout)
+        layout.addLayout(validate_layout)
 
         # -------------------------
         # Botón Guardar
         # -------------------------
-        main_layout.addSpacing(30)
+        layout.addSpacing(30)
         self.btn_save = PushButton("Guardar toda la configuración")
         self.btn_save.setIcon(FluentIcon.SAVE)
         self.btn_save.setFixedHeight(45)
         self.btn_save.setFixedWidth(300)
-        main_layout.addWidget(self.btn_save, alignment=Qt.AlignCenter)
+        layout.addWidget(self.btn_save, alignment=Qt.AlignCenter)
         self.btn_save.clicked.connect(self.save_settings)
-        main_layout.addStretch()
+        layout.addStretch()
 
     # -------------------------
     # Métodos Auxiliares

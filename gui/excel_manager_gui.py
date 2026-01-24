@@ -68,8 +68,6 @@ class ExcelManagerView(QWidget):
         
         self.layout.addWidget(self.table)
 
-        self.layout.addWidget(self.table)
-
         # -------------------------
         # Botones
         # -------------------------

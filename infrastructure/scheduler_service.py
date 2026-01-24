@@ -52,6 +52,7 @@ class SchedulerService:
     # --------------------------
     def _run_job_threaded(self, excel_path, backup_path=None):
         def task():
+            import os
             try:
                 self.logger.info(f"=== INICIO DE TAREA AUTOMÁTICA: {excel_path} ===")
                 file_name = os.path.basename(excel_path)
