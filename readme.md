@@ -52,8 +52,8 @@ A diferencia de otras herramientas, Pivoty procesa tus archivos **localmente**. 
 ### 📥 Enlaces Directos
 | Versión | Instalador Oficial | Estado |
 | :--- | :--- | :--- |
-| **v2.1.2 (Recomendada)** | [🚀 Descargar Enterprise Edition](https://github.com/Shoshan-anjo/BotExcel/releases/tag/v2.1.2) | **Estable / Actual** |
-| **v1.0.0 (Clásica)** | [📦 Descargar Base Edition](https://github.com/Shoshan-anjo/BotExcel/releases/tag/v1.0.0) | Legacy |
+| **v2.1.2 (Recomendada)** | [🚀 Descargar Enterprise Edition](https://github.com/Shoshan-anjo/BotExcel/releases/tag/2.1.2) | **Estable / Actual** |
+| **v1.0.0 (Clásica)** | [📦 Descargar Base Edition](https://github.com/Shoshan-anjo/BotExcel/releases/tag/1.0.0) | Legacy |
 
 ### 🛠️ Pasos para empezar:
 1.  **Descarga**: Elige tu versión y baja el archivo `.exe`.
